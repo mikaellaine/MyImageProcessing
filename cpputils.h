@@ -1,3 +1,6 @@
+#ifndef CppUtils_h
+#define CppUtils_h
+
 #include <dirent.h>
 #include <stdio.h>
 #include <string.h>
@@ -50,4 +53,8 @@ public:
         }
         return 0;
     }
+    
+    static int absInt(int a){return (a<0?-a:a);}
+    static long absLong(long a){return (a<0?-a:a);}
 };
+#endif

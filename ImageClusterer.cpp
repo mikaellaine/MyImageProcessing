@@ -3,10 +3,27 @@
 #include <string>
 #include <stdlib.h>
 #include <stdio.h>
-#include "DisplayImage.h"
+#include "ImageClusterer.h"
+#include "ImageAverage.h"
 #include "cpputils.h"
 
 using namespace cv;
+
+bool ImageClusterer::addCluster(const char* path)
+{
+    Mat image;
+    image = imread( path, 1 );
+    if ( !image.data )
+    {
+        printf("\nNo image data \n");
+        return false;
+    }
+    ImageAverage* cluster = ImageAverage::create( image );
+    cluster->addAvg( image );
+    mClusters.push_back(cluster);
+    return true;
+}
+
 
 void crop( const char* path )
 {
@@ -43,14 +60,14 @@ int main(int argc, char** argv )
           std::string filepath(fp.c_str());
           filepath.append("/");
           filepath.append(p);
-          printf("\n>> crop: %s", filepath.c_str());
+          printf("\nProcess: %s", filepath.c_str());
           Mat image;
           image = imread( filepath, 1 );
           if( image.data )
           {
-              printf("\ncreate ImageAverage");fflush(stdout);
-              if( avg == 0 ){ avg = ImageAverage::create( image ); }
-              printf("\nAdding to average");fflush(stdout);
+              
+              if( avg == 0 ){ printf("\ncreate ImageAverage");fflush(stdout); avg = ImageAverage::create( image ); }
+              
               avg->addAvg( image );
           }
           //crop( filepath.c_str() );
