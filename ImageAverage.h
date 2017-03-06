@@ -28,12 +28,18 @@ private:
     uchar* mOutData;
     int* mHistogram;
     bool mImageReady;
+    
+public:
+    ImageAverage* extNearbyCluster;
+    float extNearbyClusterDist;
+    int extId;
 public:
     static ImageAverage* create( const Mat& aImg )
     {
         return new ImageAverage( aImg.cols, aImg.rows, aImg.type() );
     }
     ImageAverage( int aW, int aH, int aType ){
+        extNearbyCluster = 0;
         mType = aType;
         mSumMembers = 0;
         mHistogram = 0;
@@ -64,7 +70,7 @@ public:
     //Assumes the dimensions are the same
     void addAvg( Mat& aImg )
     {
-        printf("\naddAvg");fflush(stdout);
+        //U::p("addAvg");
         mImageReady = false;//because it just changed
         if( mOutData == 0 )
         {
@@ -72,7 +78,6 @@ public:
             mBPP = aImg.elemSize();
             mOutData = (uchar*)malloc( sizeof(uchar) * mLen * mBPP );
         }
-        printf("\naddAvg");fflush(stdout);
         for( int i = 0; i < mLen; ++i )
         {
             mR[i] += ((uchar*)aImg.ptr())[i*mBPP+0];
@@ -85,8 +90,8 @@ public:
     //Returns an image that is only valid while this ImageAverage instance is
     Mat getImage()
     {
-        printf("\ngetImage()");
-        printf("\nImage format: %d x %d BPP: %d", mW, mH, mBPP);
+//        printf("\ngetImage()");
+//        printf("\nImage format: %d x %d BPP: %d", mW, mH, mBPP);
         fflush(stdout);
         
         if( !mImageReady )
@@ -112,9 +117,9 @@ public:
         long diff = 0;
         for( int i = 0; i < mLen; ++i )
         {
-            diff += CppUtils::absInt( mR[i] - aO->mR[i] );
-            diff += CppUtils::absInt( mG[i] - aO->mG[i] );
-            diff += CppUtils::absInt( mB[i] - aO->mB[i] );
+            diff += U::absInt( mR[i] - aO->mR[i] );
+            diff += U::absInt( mG[i] - aO->mG[i] );
+            diff += U::absInt( mB[i] - aO->mB[i] );
         }
         diff /= 255;
         diff /= 3;
