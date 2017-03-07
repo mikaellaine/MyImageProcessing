@@ -147,7 +147,7 @@ void ImageClusterer::outputClusterImagesToFilesystem()
         mClusters[i]->packColors();
         imwrite(histfilepath, mClusters[i]->getHistogramImage());
     }
-    imwrite("ClusterImages/color_table.png", mClusters[0]->getHistogramColorTable());
+    imwrite("ClusterImages/q_color_table.png", mClusters[0]->getHistogramColorTable());
 }
 
 
@@ -169,9 +169,9 @@ void crop( const char* path )
 
 int main(int argc, char** argv )
 {
-  if ( argc != 2 )
+  if ( argc != 3 )
     {
-      printf("usage: DisplayImage.out <Image_Path>\n");
+      printf("usage: DisplayImage.out <Image_Path> <desired number of clusters>\n");
       return -1;
     }
     ImageClusterer* clusters = new ImageClusterer();
@@ -179,6 +179,8 @@ int main(int argc, char** argv )
     ImageAverage* avg = 0;
     //Go through all the files in the directory:
     std::string fp = argv[1];
+    std::string count = argv[2];
+    int cluster_count = std::stoi(count);
     printf("\n Traversing directory %s", fp.c_str());
     if( U::openDir( fp.c_str() ) )
     {
@@ -191,11 +193,11 @@ int main(int argc, char** argv )
           clusters->addCluster( filepath.c_str());
       }
         printf("\nNow we have %d clusters", clusters->clusterCount());
-        clusters->mergeClusters(2.0f);
+        clusters->mergeClusters(0.8f);
         printf("\nNow we have %d clusters", clusters->clusterCount());
-        clusters->mergeClusters(2.0f);
+        clusters->mergeClusters(0.8f);
         printf("\nNow we have %d clusters", clusters->clusterCount());
-        while( clusters->clusterCount() > 5 )
+        while( clusters->clusterCount() > cluster_count )
         {
             clusters->mergeClusters(0.8f);
             printf("\nNow we have %d clusters", clusters->clusterCount());
