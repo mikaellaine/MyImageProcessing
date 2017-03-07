@@ -10,6 +10,7 @@ using namespace cv;
 //3. Repeat 2. until the number of clusters is low enough (for terrain images, probably between 4 and 10 (for seasonal groups)
 
 
+#define COL_PACK_WIDTH 100
 
 class ImageAverage{
 private:
@@ -23,10 +24,12 @@ private:
     int mType;
     
     double mSumMembers;//for the average
-    
     //Raw image
     uchar* mOutData;
-    int* mHistogram;
+    uchar* mHistogramOutData;
+    static uchar* mHistogramColors;//colors represented by the histogram locations
+    int* mNormalizedColor;//pack the color into a triangle
+    int mNormalizedColorLen;
     bool mImageReady;
     
 public:
@@ -40,9 +43,9 @@ public:
     }
     ImageAverage( int aW, int aH, int aType ){
         extNearbyCluster = 0;
+        mHistogramOutData = 0;
         mType = aType;
         mSumMembers = 0;
-        mHistogram = 0;
         mImageReady = false;
         mW = aW;
         mH = aH;
@@ -58,14 +61,21 @@ public:
             mG[i] = 0;
             mB[i] = 0;
         }
+        mNormalizedColorLen = COL_PACK_WIDTH * COL_PACK_WIDTH;
+        mNormalizedColor = (int*)malloc( sizeof(int) * mNormalizedColorLen );
+        for( int i = 0; i < mNormalizedColorLen; ++i )
+        {
+            mNormalizedColor[i] = 0;
+        }
     }
     ~ImageAverage()
     {
-        if( mHistogram ){ free(mHistogram); }
         if( mOutData ){ free(mOutData); }
+        if( mHistogramOutData ){ free(mHistogramOutData); }
         free(mR);
         free(mG);
         free(mB);
+        free(mNormalizedColor);
     }
     //Assumes the dimensions are the same
     void addAvg( Mat& aImg )
@@ -77,6 +87,27 @@ public:
             mType = aImg.type();
             mBPP = aImg.elemSize();
             mOutData = (uchar*)malloc( sizeof(uchar) * mLen * mBPP );
+            if( mHistogramColors == 0 )
+            {
+                mHistogramColors = (uchar*)malloc(sizeof(uchar) * mNormalizedColorLen * mBPP );
+                float increment = 1.0 / COL_PACK_WIDTH;
+                for( float r = 0; r < 1.0; r += increment )
+                {
+                    for( float g = 0; g < 1.0; g += increment )
+                    {
+                        for( float b = 0; b < 1.0; b += increment )
+                        {
+                            //now project to the r-g plane
+                            int x = (int)(r * ((float)COL_PACK_WIDTH));
+                            int y = (int)(g * ((float)COL_PACK_WIDTH));
+                            int imgindex = x+y*COL_PACK_WIDTH;
+                            mHistogramColors[imgindex*mBPP + 0] = (uchar)((int)(255.0 * r));
+                            mHistogramColors[imgindex*mBPP + 1] = (uchar)((int)(255.0 * g));
+                            mHistogramColors[imgindex*mBPP + 2] = (uchar)((int)(255.0 * b));
+                        }
+                    }
+                }
+            }
         }
         for( int i = 0; i < mLen; ++i )
         {
@@ -90,10 +121,6 @@ public:
     //Returns an image that is only valid while this ImageAverage instance is
     Mat getImage()
     {
-//        printf("\ngetImage()");
-//        printf("\nImage format: %d x %d BPP: %d", mW, mH, mBPP);
-        fflush(stdout);
-        
         if( !mImageReady )
         {
             for( int i = 0; i < mLen; ++i )
@@ -108,9 +135,62 @@ public:
         mImageReady = true;
         return image;
     }
+    Mat getHistogramImage()
+    {
+        if( !mHistogramOutData )
+        {
+            mHistogramOutData = (uchar*)malloc( sizeof(uchar) * mNormalizedColorLen * mBPP );
+        }
+        int maxval = 0;
+        for( int i = 0; i < mNormalizedColorLen; ++i ){
+            if( mNormalizedColor[i] > maxval ){ maxval = mNormalizedColor[i]; }
+        }
+        for( int i = 0; i < mNormalizedColorLen; ++i )
+        {
+            mHistogramOutData[i*mBPP + 0] = (unsigned char)((int)(mHistogramColors[i*mBPP+0]*((float)mNormalizedColor[i]) / ((float)maxval) ));
+            mHistogramOutData[i*mBPP + 1] = (unsigned char)((int)(mHistogramColors[i*mBPP+1]*((float)mNormalizedColor[i]) / ((float)maxval) ));
+            mHistogramOutData[i*mBPP + 2] = (unsigned char)((int)(mHistogramColors[i*mBPP+2]*((float)mNormalizedColor[i]) / ((float)maxval) ));
+        }
+        Mat image( COL_PACK_WIDTH, COL_PACK_WIDTH, mType, mHistogramOutData );
+        return image;
+    }
+    Mat getHistogramColorTable()
+    {
+        for( int i = 0; i < mNormalizedColorLen; ++i )
+        {
+            mHistogramOutData[i*mBPP + 0] = mHistogramColors[i*mBPP+0];
+            mHistogramOutData[i*mBPP + 1] = mHistogramColors[i*mBPP+1];
+            mHistogramOutData[i*mBPP + 2] = mHistogramColors[i*mBPP+2];
+        }
+        Mat image( COL_PACK_WIDTH, COL_PACK_WIDTH, mType, mHistogramOutData );
+        return image;
+    }
+    
+    
+    void packColors()
+    {
+        getImage();
+        //Clear first
+        for( int i = 0; i < mNormalizedColorLen; ++i ){mNormalizedColor[i] = 0;}
+        for( int i = 0; i < mLen; ++i )
+        {
+            Vec3f col( mOutData[i*mBPP + 0], mOutData[i*mBPP + 1], mOutData[i*mBPP + 2]);
+            //normalize
+            col = normalize(col);
+            
+            //now project to the r-g plane
+            int x = (int)(col[0] * ((float)COL_PACK_WIDTH));
+            int y = (int)(col[1] * ((float)COL_PACK_WIDTH));
+            //Add to the color histogram
+            mNormalizedColor[ x + y * COL_PACK_WIDTH ] = mNormalizedColor[ x + y * COL_PACK_WIDTH ] + 1;
+        }
+    }
+    
     int diff( ImageAverage* aO )
     {
-        return diffByPixels(aO);
+        //Choose a differentiation method
+        //return diffByPixels(aO);
+        return diffByColorHistogram(aO);
     }
     long diffByPixels( ImageAverage* aO )
     {
@@ -125,9 +205,14 @@ public:
         diff /= 3;
         return diff;
     }
-    long diffByHistogram( ImageAverage* aO )
+    long diffByColorHistogram( ImageAverage* aO )
     {
-        return 0;
+        long diff = 0;
+        for( int i = 0; i < mNormalizedColorLen; ++i )
+        {
+            diff += U::absInt( mNormalizedColor[i] - aO->mNormalizedColor[i] );
+        }
+        return diff;
     }
 };
 #endif
