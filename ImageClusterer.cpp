@@ -21,7 +21,6 @@ bool ImageClusterer::addCluster(const char* path)
     }
     ImageAverage* cluster = ImageAverage::create( image );
     cluster->addAvg( image );
-    cluster->packColors();
     mClusters.push_back(cluster);
     return true;
 }
@@ -36,6 +35,7 @@ void ImageClusterer::mergeClusters( float aMaxDist )
     ImageAverage* a;
     for( int i = 0; i < mClusters.size(); ++i )
     {
+        printf("%d/%d, ", i, (int)mClusters.size());fflush(stdout);
         a = mClusters[i];
         ImageAverage* avg;
         float dist = (float)minDist( a, &avg );
@@ -69,7 +69,6 @@ void ImageClusterer::mergeClusters( float aMaxDist )
                 newCluster->addAvg( bimg );
                 a->extNearbyCluster->extNearbyCluster = 0;
                 a->extNearbyCluster = 0;
-                newCluster->packColors();
                 newClusters.push_back(newCluster);
             }
             else
@@ -80,7 +79,6 @@ void ImageClusterer::mergeClusters( float aMaxDist )
                 newCluster->addAvg( aimg );
                 a->extNearbyCluster->extNearbyCluster = 0;
                 a->extNearbyCluster = 0;
-                newCluster->packColors();
                 newClusters.push_back(newCluster);
             }
         }
@@ -128,11 +126,13 @@ void ImageClusterer::clearClusters()
 
 void ImageClusterer::outputClusterImagesToFilesystem()
 {
+    U::p("output clusters");
     ImageAverage *a;
     system("mkdir ClusterImages");
     system("rm -r -f ClusterImages/*");
     for( int i = 0; i < mClusters.size(); ++i )
     {
+        printf("output cluster %d", i);fflush(stdout);
         a = mClusters[i];
         std::string filepath("ClusterImages/");
         std::string histfilepath(filepath);
@@ -143,8 +143,9 @@ void ImageClusterer::outputClusterImagesToFilesystem()
         histfilepath.append(".png");
         
         filepath.append(".png");
+        U::p("output image");
         imwrite(filepath, mClusters[i]->getImage());
-        mClusters[i]->packColors();
+        U::p("output colorspace");
         imwrite(histfilepath, mClusters[i]->getHistogramImage());
     }
     imwrite("ClusterImages/q_color_table.png", mClusters[0]->getHistogramColorTable());
