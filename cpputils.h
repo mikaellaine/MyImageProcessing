@@ -57,5 +57,6 @@ public:
     static int absInt(int a){return (a<0?-a:a);}
     static long absLong(long a){return (a<0?-a:a);}
     static void p( const char* aMsg ){ printf("\n%s",aMsg); fflush(stdout); }
+    
 };
 #endif

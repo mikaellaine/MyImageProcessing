@@ -20,10 +20,15 @@ bool ImageClusterer::addCluster(const char* path)
         return false;
     }
     ImageAverage* cluster = ImageAverage::create( image );
-    cluster->addAvg( image );
+    cluster->addAvg( image, path );
     mClusters.push_back(cluster);
     return true;
 }
+
+void ImageClusterer::outputClusterColorTable()
+    {
+        imwrite("ClusterImages/q_color_table.png", mClusters[0]->getHistogramColorTable());
+    }
 
 //@param aMaxDist: how many times the average distance can the distance within a cluster be
 //If the closest cluster's distance > aMaxDist*avgMinDist, the cluster won't be  merged
@@ -63,10 +68,9 @@ void ImageClusterer::mergeClusters( float aMaxDist )
                 printf("\nJOIN: %d, %d", a->extId, a->extNearbyCluster->extId);
                 //Merge clusters
                 Mat aimg = a->getImage();
-                Mat bimg = a->extNearbyCluster->getImage();
                 ImageAverage* newCluster = ImageAverage::create( aimg );
-                newCluster->addAvg( aimg );
-                newCluster->addAvg( bimg );
+                newCluster->addAvg( a );
+                newCluster->addAvg( a->extNearbyCluster );
                 a->extNearbyCluster->extNearbyCluster = 0;
                 a->extNearbyCluster = 0;
                 newClusters.push_back(newCluster);
@@ -76,7 +80,7 @@ void ImageClusterer::mergeClusters( float aMaxDist )
                 //Create a single-member cluster
                 Mat aimg = a->getImage();
                 ImageAverage* newCluster = ImageAverage::create( aimg );
-                newCluster->addAvg( aimg );
+                newCluster->addAvg( aimg, "" );
                 a->extNearbyCluster->extNearbyCluster = 0;
                 a->extNearbyCluster = 0;
                 newClusters.push_back(newCluster);
@@ -89,6 +93,49 @@ void ImageClusterer::mergeClusters( float aMaxDist )
     //Use the new clusters
     mClusters = newClusters;
     U::p("merging done.");
+}
+
+void ImageClusterer::outputNormalized( const char* aOutputDirPath )
+{
+    U::p("output clusters");
+    
+//    for( int i = 0; i < mClusters.size(); ++i )
+//    {
+//        //mClusters[i]->normalizeImageData();
+//        printf("\nSaturation[%d]=%g", i, mClusters[i]->getAvgSaturation());
+//        mClusters[i]->normalizeColorSpace();
+//        std::string filepath( aOutputDirPath );
+//        filepath.append("/");
+//        
+//        filepath.append("norm_");
+//        filepath.append(std::to_string(i));
+//        filepath.append(".png");
+//        
+//        imwrite(filepath, mClusters[i]->getImage());
+//    }
+    float avgsat = 0;int avgcnt = 0;
+    for( int i = 0; i < mClusters.size(); ++i )
+    {
+        float sat = mClusters[i]->getAvgSaturation();
+        avgsat += sat;
+        printf("\nSaturation[%d]=%g", i, sat);
+        ++avgcnt;
+    }
+    avgsat /= avgcnt;
+    printf( "\nSaturation[x]=%g", avgsat );
+    for( int i = 0; i < mClusters.size(); ++i )
+    {
+        mClusters[i]->normalizeSaturation( avgsat );
+        //mClusters[i]->normalizeColorSpace();
+        std::string filepath( aOutputDirPath );
+        filepath.append("/");
+        
+        filepath.append("norm_");
+        filepath.append(std::to_string(i));
+        filepath.append(".png");
+        
+        imwrite(filepath, mClusters[i]->getImage());
+    }
 }
 
 float ImageClusterer::minDist( ImageAverage* aCluster, ImageAverage** aMinCluster )
@@ -182,29 +229,67 @@ int main(int argc, char** argv )
     std::string fp = argv[1];
     std::string count = argv[2];
     int cluster_count = std::stoi(count);
+    
+    U::p("TEST");
+    //Vec3f test(0.5, 0.5, 0);
+    //ColorUtils::normalizeColor( test );
+    
+    
     printf("\n Traversing directory %s", fp.c_str());
-    if( U::openDir( fp.c_str() ) )
+    if( cluster_count == 0 )
     {
-      while( const char* p = U::iterDir() )
-      {
-          std::string filepath(fp.c_str());
-          filepath.append("/");
-          filepath.append(p);
-          printf("\nRead: %s", filepath.c_str());
-          clusters->addCluster( filepath.c_str());
-      }
-        printf("\nNow we have %d clusters", clusters->clusterCount());
-        clusters->mergeClusters(0.8f);
-        printf("\nNow we have %d clusters", clusters->clusterCount());
-        clusters->mergeClusters(0.8f);
-        printf("\nNow we have %d clusters", clusters->clusterCount());
-        while( clusters->clusterCount() > cluster_count )
+        if( U::openDir( fp.c_str() ) )
         {
+            while( const char* p = U::iterDir() )
+            {
+                std::string filepath(fp.c_str());
+                filepath.append("/");
+                filepath.append(p);
+                printf("\nRead: %s", filepath.c_str());
+                clusters->addCluster( filepath.c_str() );
+            }
+            clusters->outputNormalized("NormalizedImages");
+            
+            while( clusters->clusterCount() > 3 )
+            {
+                clusters->mergeClusters(0.8f);
+                printf("\nNow we have %d clusters", clusters->clusterCount());
+            }
+            clusters->outputClusterImagesToFilesystem();
+            U::closeDir();
+        }
+    }
+    else
+    {
+
+        if( U::openDir( fp.c_str() ) )
+        {
+          while( const char* p = U::iterDir() )
+          {
+              std::string filepath(fp.c_str());
+              filepath.append("/");
+              filepath.append(p);
+              printf("\nRead: %s", filepath.c_str());
+              clusters->addCluster( filepath.c_str() );
+          }
+            U::p("Color table");
+            clusters->outputClusterColorTable();
+            U::p("Color table done");
+            
+            
+            printf("\nNow we have %d clusters", clusters->clusterCount());
             clusters->mergeClusters(0.8f);
             printf("\nNow we have %d clusters", clusters->clusterCount());
+            clusters->mergeClusters(0.8f);
+            printf("\nNow we have %d clusters", clusters->clusterCount());
+            while( clusters->clusterCount() > cluster_count )
+            {
+                clusters->mergeClusters(0.8f);
+                printf("\nNow we have %d clusters", clusters->clusterCount());
+            }
+            clusters->outputClusterImagesToFilesystem();
+            U::closeDir();
         }
-        clusters->outputClusterImagesToFilesystem();
-        U::closeDir();
     }
   return 0;
 }

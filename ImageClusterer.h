@@ -17,6 +17,7 @@ public:
     float minDist( ImageAverage* aCluster, ImageAverage** aMinCluster );//get the closest other cluster and dist to it
     void clearClusters();
     void outputClusterImagesToFilesystem();
-    
+    void outputClusterColorTable();
+    void outputNormalized( const char* aOutputDirPath );
 };
 #endif
